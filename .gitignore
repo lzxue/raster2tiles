@@ -1,0 +1,8 @@
+/node_modules
+/src/data
+tiles
+src/.DS_Store
+.DS_Store
+/src/*.tiff
+/src/landcover.tiff
+*.lock
