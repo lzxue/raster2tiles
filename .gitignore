@@ -6,3 +6,4 @@ src/.DS_Store
 /src/*.tiff
 /src/landcover.tiff
 *.lock
+/src/temp

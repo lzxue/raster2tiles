@@ -7,12 +7,12 @@ var driver = dataset.driver;
 var inBand = dataset.bands.get(1);
 var rasterSize = dataset.rasterSize;
 
-
 //  const tileHelp = new TileHelper(256, 'google');
 
 const tiffTile = new TiffTile(dataset);
-// tiffTile.reprojectRaster(dataset,8,'./landcover.tiff')
+
 
 tiffTile.createBoundsTile(8);
+
 
 

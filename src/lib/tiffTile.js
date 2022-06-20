@@ -2,6 +2,16 @@ const gdal = require("gdal-next")
 const fs = require('fs');
 var shortid = require('shortid');
 const TileHelper = require('./tilehelp')
+const DataTypeEnum = {
+    'Byte': Uint8Array,
+    'Float32': Float32Array,
+    'Float64': Float64Array,
+    'Int16': Int16Array,
+    'UInt16': Uint16Array,
+    'Int32': Int32Array,
+    'UInt32': Uint32Array,
+
+}
 class TileTiff {
     constructor(ds) {
         this.tileHelper = new TileHelper(256, 'google');
@@ -32,24 +42,26 @@ class TileTiff {
         this.writeTiffTile(x, y, z, tileData);
     }
     createBoundsTile(z) {
-        // if (!this.zoomDataset[z]) {
-        //     this.zoomDataset[z] = {
-        //         dataset: this.reprojectRaster(this.rawDataset, z, `./temp/${z}/${shortid.generate()}.tiff`),
-        //         path: `./temp/${z}/${shortid.generate()}.tiff`
-        //     }
-        // }
-        // this.dataset = this.zoomDataset[z].dataset;
+        const fileName = `./temp/${z}_${shortid.generate()}.tiff`;
+        this.reprojectRaster(this.rawDataset, z, fileName);
+        this.dataset = gdal.open(fileName);
+        console.log(z,': 重采样完成')
         const tileBounds = this.getRasterTileBoundByzoom(z);
-        const rasterSize = this.dataset.rasterSize;
-
-
+        const totalTile = -(tileBounds[1][0]-tileBounds[0][0])*(tileBounds[0][1]-tileBounds[1][1]);
+        console.log(`开启切片共 ${totalTile}个`)
+        var startIndex =0;
         for (var x = tileBounds[0][0]; x <= tileBounds[1][0]; x++) {
             for (var y = tileBounds[0][1]; y <= tileBounds[1][1]; y++) {
+               
                 this.createTile(x, y, z)
+                if(startIndex % (Math.floor(totalTile / 10)) === 0){
+                    console.log(`已完成 ${Math.floor(startIndex / (Math.floor(totalTile / 10)))*10}%`)
+                }
+                startIndex++
             }
 
         }
-
+        fs.rmSync(fileName)
         // TODO 计算每个瓦片的
 
     }
@@ -115,7 +127,8 @@ class TileTiff {
 
         };
         gdal.reprojectImage(option)
-        outDs.flush()
+        outDs.flush();
+        outDs.close();
 
     }
     // 计算重采样后数据的大小
@@ -132,6 +145,7 @@ class TileTiff {
         const rasterSize = this.dataset.rasterSize;
         const start = [Math.min(Math.max(0, origin[0]), rasterSize.x - 1), Math.min(Math.max(0, origin[1]), rasterSize.y - 1)];
         const end = [Math.min(rasterSize.x - start[0] - 2, tileHelp.tileSize), Math.min(rasterSize.y - start[1] - 1, tileHelp.tileSize)];
+
         const data = Array.from(band.pixels.read(start[0], start[1], end[0], end[1]))
         return {
             data,
@@ -159,13 +173,14 @@ class TileTiff {
 
         outDs.setGCPs(gcp, gcpProject)
         const outBand = outDs.bands.get(1);
-        // outBand.colorInterpretation = dataset.bands.get(1).colorInterpretation;
+        outBand.colorInterpretation = dataset.bands.get(1).colorInterpretation;
         outBand.noDataValue = this.noDataValue;
         outDs.srs = dataset.srs;
         // TODO 数据类型
-        outBand.pixels.write(0, 0, data.width, data.height, new Int8Array(data.data))
-        outBand.computeStatistics(false)
+        outBand.pixels.write(0, 0, data.width, data.height, new DataTypeEnum[this.getDataType()](data.data))
+        outBand.computeStatistics(true)
         outDs.flush()
+        outDs.close();
     }
     getTileOrigin(x, y, z) {
         // Todo 计算 Tiff 左上角
