@@ -3,13 +3,19 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "bin": {
+    "tiff2Tile": "cli.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "chalk": "^5.0.1",
+    "commander": "^9.3.0",
     "gdal-next": "^2.8.0",
     "shortid": "^2.2.16"
   }
 }
+

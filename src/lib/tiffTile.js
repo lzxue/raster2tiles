@@ -13,15 +13,13 @@ const DataTypeEnum = {
 
 }
 class TileTiff {
-    constructor(ds) {
+    constructor(ds,out) {
         this.tileHelper = new TileHelper(256, 'google');
         this.dataset = ds;
         this.rawDataset = ds;
+        this.outPath = out;
         this.extent = this.getRasterExtent();
         this.noDataValue = -32768;
-        if (!fs.existsSync('./tiles')) {
-            fs.mkdirSync('./tiles')
-        }
         this.zoomDataset = {
         };
     }
@@ -42,20 +40,20 @@ class TileTiff {
         this.writeTiffTile(x, y, z, tileData);
     }
     createBoundsTile(z) {
-        const fileName = `./temp/${z}_${shortid.generate()}.tiff`;
+        const fileName = `${this.outPath}/temp/${z}_${shortid.generate()}.tiff`;
         this.reprojectRaster(this.rawDataset, z, fileName);
         this.dataset = gdal.open(fileName);
-        console.log(z,': 重采样完成')
+        console.log(z, ': 重采样完成')
         const tileBounds = this.getRasterTileBoundByzoom(z);
-        const totalTile = -(tileBounds[1][0]-tileBounds[0][0])*(tileBounds[0][1]-tileBounds[1][1]);
+        const totalTile = Math.abs((tileBounds[1][0] - tileBounds[0][0] + 1) * (tileBounds[0][1] - tileBounds[1][1] + 1));
         console.log(`开启切片共 ${totalTile}个`)
-        var startIndex =0;
+        var startIndex = 0;
         for (var x = tileBounds[0][0]; x <= tileBounds[1][0]; x++) {
             for (var y = tileBounds[0][1]; y <= tileBounds[1][1]; y++) {
-               
+
                 this.createTile(x, y, z)
-                if(startIndex % (Math.floor(totalTile / 10)) === 0){
-                    console.log(`已完成 ${Math.floor(startIndex / (Math.floor(totalTile / 10)))*10}%`)
+                if (startIndex % (Math.floor(totalTile / 10)) === 0) {
+                    console.log(`已完成 ${Math.floor(startIndex / (Math.floor(totalTile / 10))) * 10}%`)
                 }
                 startIndex++
             }
@@ -144,26 +142,32 @@ class TileTiff {
         const band = this.dataset.bands.get(1);
         const rasterSize = this.dataset.rasterSize;
         const start = [Math.min(Math.max(0, origin[0]), rasterSize.x - 1), Math.min(Math.max(0, origin[1]), rasterSize.y - 1)];
-        const end = [Math.min(rasterSize.x - start[0] - 2, tileHelp.tileSize), Math.min(rasterSize.y - start[1] - 1, tileHelp.tileSize)];
-
-        const data = Array.from(band.pixels.read(start[0], start[1], end[0], end[1]))
+        const end = [Math.min(origin[0] + 256, rasterSize.x), Math.min(origin[1] + 256, rasterSize.y)]
+        const x = origin[0] < 0 ? -  origin[0] : 0;
+        const y = origin[1] < 0 ? -  origin[1] : 0;
+        const height= end[1] -start[1]
+        const width= end[0] -start[0]
+        const data = Array.from(band.pixels.read(start[0], start[1], width, height))
         return {
             data,
-            height: end[1],
-            width: end[0]
+            x,
+            y,
+            height,
+            width
         }
+     
     }
     writeTiffTile(x, y, z, data) {
         const dataset = this.dataset;
         const driver = dataset.driver;
         const tileHelp = this.tileHelper;
-        if (!fs.existsSync(`./tiles/${z}`)) {
-            fs.mkdirSync(`./tiles/${z}`)
+        if (!fs.existsSync(`${this.outPath}/${z}`)) {
+            fs.mkdirSync(`${this.outPath}/${z}`)
         }
-        if (!fs.existsSync(`./tiles/${z}/${x}`)) {
-            fs.mkdirSync(`./tiles/${z}/${x}`)
+        if (!fs.existsSync(`${this.outPath}/${z}/${x}`)) {
+            fs.mkdirSync(`${this.outPath}/${z}/${x}`)
         }
-        const outDs = driver.create(`./tiles/${z}/${x}/${y}.tiff`, tileHelp.tileSize, tileHelp.tileSize, 1, this.getDataType());
+        const outDs = driver.create(`${this.outPath}/${z}/${x}/${y}.tiff`, tileHelp.tileSize, tileHelp.tileSize, 1, this.getDataType());
         const gcp = dataset.getGCPs();
         const gcpProject = dataset.srs.toWKT();
         const resolution = tileHelp.resolution(z);
@@ -176,8 +180,9 @@ class TileTiff {
         outBand.colorInterpretation = dataset.bands.get(1).colorInterpretation;
         outBand.noDataValue = this.noDataValue;
         outDs.srs = dataset.srs;
+        outBand.fill(this.noDataValue);
         // TODO 数据类型
-        outBand.pixels.write(0, 0, data.width, data.height, new DataTypeEnum[this.getDataType()](data.data))
+        outBand.pixels.write(data.x, data.y, data.width, data.height, new DataTypeEnum[this.getDataType()](data.data))
         outBand.computeStatistics(true)
         outDs.flush()
         outDs.close();
@@ -188,7 +193,9 @@ class TileTiff {
         const corner = this.extent;
         const leftTopPixels = tileHelp.lonLatToPixels(corner[0], corner[3], z);
         const tilePixles = [x * tileHelp.tileSize, y * tileHelp.tileSize];
-        const originPixels = [tilePixles[0] - leftTopPixels[0], tilePixles[1] - leftTopPixels[1]]
+
+        const originPixels = [tilePixles[0] - leftTopPixels[0], tilePixles[1] - leftTopPixels[1]];
+
         return [Math.ceil(originPixels[0]), Math.ceil(originPixels[1])];
 
     }

@@ -1,18 +1,17 @@
 var gdal = require("gdal-next")
-// var dataset = gdal.open("./data/landcover_3857_2.tif");
-var dataset = gdal.open("./landcover.tiff");
-var TileHelper = require('./lib/tilehelp')
+var dataset = gdal.open("/Users/lizhengxue/Downloads/tile/landcover_JiangXi.tif");
 var TiffTile = require('./lib/tiffTile');
-var driver = dataset.driver;
-var inBand = dataset.bands.get(1);
-var rasterSize = dataset.rasterSize;
+
 
 //  const tileHelp = new TileHelper(256, 'google');
 
 const tiffTile = new TiffTile(dataset);
 
+for(let i=12; i< 15;i++){
+    tiffTile.createBoundsTile(i);
+}
 
-tiffTile.createBoundsTile(8);
+
 
 
 
