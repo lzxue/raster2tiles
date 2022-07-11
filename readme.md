@@ -21,7 +21,7 @@
  -Z 切片最大等级
 
  ```bash
- rastertile  -s ./src/landcover.tiff -o ./tile -z 0 -Z 5
+ tiff2Tile  -s ./src/landcover.tiff -o ./tile -z 0 -Z 5
  ```
 
 
